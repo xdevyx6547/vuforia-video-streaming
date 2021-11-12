@@ -614,4 +614,287 @@ void VuforiaApplication_UpdateCallback::QCAR_onUpdate(QCAR::State& state)
     }
 }
 
+void BeginCapturing()
+{
+
+    //inizializza la fotocamera se non riesce ad inizializzare esce
+
+    if (!QCAR::CameraDevice::getInstance().init())
+
+    return;
+
+    //configurazione del formato video per la visualizzazione nello schermo
+
+    ConfigureVideoBackground();
+
+    //seleziona il modo di cattura della fotocamera se non riesce esce
+
+    if (!QCAR::CameraDevice::getInstance().selectVideoMode(
+
+    QCAR::CameraDevice::MODE_DEFAULT))
+
+    return;
+
+    //inizio cattura
+
+    if (!QCAR::CameraDevice::getInstance().start())
+
+    return;
+
+
+    QCAR::Tracker::getInstance().start();
+
+}
+
+
+
+/*
+public native void nativeFunction();
+
+static
+{
+   System.loadLibray(nome_della_libreria);
+}
+*/
+
+#include <jni.h>
+
+extern “C”
+{
+      JNIEXPORT void JNICALL
+      Java_nome_package_Nome_Classe_nativeFunction(JNIEnv *, jobject)
+      {
+            //corpo del metodo
+      }
+}
+private synchronized void updateApplicationStatus(int appStatus)
+{
+       // esci se non è stato effettuato un cambiamento di stato
+       if (mAppStatus == appStatus)
+       return;
+
+      // salva il nuovo stato
+      mAppStatus = appStatus;
+
+      // esegui azioni specifiche per lo stato in cui si trova l'applicazione
+      switch (mAppStatus)
+      {
+             case APPSTATUS_INIT_APP:
+                    // inizializza gli elementi non correlati con QCAR
+                    initApplication();
+                    // procedi con l'inizializzazione di QCAR
+                    updateApplicationStatus(APPSTATUS_INIT_QCAR);
+                    break;
+             case APPSTATUS_INIT_QCAR:
+                    // inizializzazione di QCAR che verrà eseguita una sola volta
+                    try
+                    {
+                           mInitQCARTask = new InitQCARTask();
+                           // se execute va a buon fine procede direttamente con
+                           //inizializzazione dell'AR
+                           mInitQCARTask.execute();
+                       }
+                    catch (Exception e)
+                    {
+                           DebugLog.LOGE("Initializing Vuforia SDK failed");
+                       }
+                         break;
+             case APPSTATUS_INIT_APP_AR:
+                    // inizializza elementi specifici per l'applicazione di AR
+                    initApplicationAR();
+                    // procedi con l'inizializzazione del tracker
+                    updateApplicationStatus(APPSTATUS_INIT_TRACKER);
+
+             case APPSTATUS_INIT_TRACKER:
+                    // carica il database e le informazioni sui tracker
+                    try
+                    {
+                           mLoadTrackerTask = new LoadTrackerTask();
+                           // se execute va a buon fine procedi con è
+                           // APPSTATUS_INITED
+                           mLoadTrackerTask.execute();
+                      }
+                    catch (Exception e)
+                    {
+                           DebugLog.LOGE("Loading tracking data set failed");
+                       }
+                          break;
+
+
+             case APPSTATUS_INITED:
+                    System.gc();
+                    // funzione nativa di post iniz<ializzazione
+                    nQCARInitializedNative();
+                    // Tempo di caricamento dell'applicazione
+                    long splashScreenTime = System.currentTimeMillis() -
+                    mSplashScreenStartTime;
+                    long newSplashScreenTime = 0;
+                    if (splashScreenTime < MIN_SPLASH_SCREEN_TIME)
+                    {
+                            newSplashScreenTime = MIN_SPLASH_SCREEN_TIME -
+                            splashScreenTime;
+                    }
+                   Handler handler = new Handler();
+                   handler.postDelayed(new Runnable() {
+                   public void run()
+                   {
+                          // nascondi la pagina di inizializzazione
+                          mSplashScreenView.setVisibility(View.INVISIBLE);
+                          // attiva il render
+                          mRenderer.mIsActive = true;
+                          // aggiungi la GLSurfaceView prima di iniziare la
+                          // cattura dei frame
+                          addContentView(mGlView, new LayoutParams(
+                                       LayoutParams.FILL_PARENT,
+                                       LayoutParams.FILL_PARENT));
+                          // inizia la cattura dei frame
+                          updateApplicationStatus(APPSTATUS_CAMERA_RUNNING);
+
+                   }
+                   }, newSplashScreenTime);
+                   break;
+
+             case APPSTATUS_CAMERA_STOPPED:
+                    // richiama la funzione nativa di fine riprese
+                    stopCamera();
+                    break;
+             case APPSTATUS_CAMERA_RUNNING:
+                    // richiama la funzione nativa di inizio riprese
+                    startCamera();
+                    break;
+             default:
+                    throw new RuntimeException("Invalid application state");
+
+      }
+
+}
+
+
+
+void SampleMethod()
+{
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+// Render video background:
+QCAR::State state = QCAR::Renderer::getInstance().begin();
+glEnable(GL_DEPTH_TEST);
+glEnable(GL_CULL_FACE);
+
+
+
+
+const QCAR::Trackable* trackable = state.getActiveTrackable(tIdx);
+QCAR::Matrix44F modelViewMatrix =
+QCAR::Tool::convertPose2GLMatrix(trackable->getPose());
+// Scelta della struttura correlata all'immagine tracciata
+int textureIndex = (!strcmp(trackable->getName(), "stones")) ? 0 : 1;
+const Texture* const thisTexture = textures[textureIndex];
+//animazione della teiera
+animateTeapot(modelViewMatrix);
+
+QCAR::Matrix44F modelViewProjection;
+SampleUtils::translatePoseMatrix(0.0f, 0.0f, kObjectScale,
+&modelViewMatrix.data[0]);
+SampleUtils::scalePoseMatrix(kObjectScale, kObjectScale, kObjectScale,
+&modelViewMatrix.data[0]);
+SampleUtils::multiplyMatrix(&projectionMatrix.data[0],
+&modelViewMatrix.data[0] ,
+&modelViewProjection.data[0]);
+glUseProgram(shaderProgramID);
+glVertexAttribPointer(vertexHandle, 3, GL_FLOAT, GL_FALSE, 0,
+(const GLvoid*) &teapotVertices[0]);
+glVertexAttribPointer(normalHandle, 3, GL_FLOAT, GL_FALSE, 0,
+(const GLvoid*) &teapotNormals[0]);
+glVertexAttribPointer(textureCoordHandle, 2, GL_FLOAT, GL_FALSE, 0,
+(const GLvoid*) &teapotTexCoords[0]);
+glEnableVertexAttribArray(vertexHandle);
+glEnableVertexAttribArray(normalHandle);
+glEnableVertexAttribArray(textureCoordHandle);
+glActiveTexture(GL_TEXTURE0);
+glBindTexture(GL_TEXTURE_2D, thisTexture->mTextureID);
+glUniformMatrix4fv(mvpMatrixHandle, 1, GL_FALSE,
+(GLfloat*)&modelViewProjection.data[0] );
+glDrawElements(GL_TRIANGLES, NUM_TEAPOT_OBJECT_INDEX, GL_UNSIGNED_SHORT,
+(const GLvoid*) &teapotIndices[0]);
+SampleUtils::checkGlError("ImageTargets renderFrame");
+
+glDisableVertexAttribArray(vertexHandle);
+glDisableVertexAttribArray(normalHandle);
+glDisableVertexAttribArray(textureCoordHandle);
+QCAR::Renderer::getInstance().end();
+
+    
+}
+
+
+
+void animateTeapot(QCAR::Matrix44F& modelViewMatrix)
+{
+       static float rotateBowlAngle = 0.0f;
+       static float moveXY = 0.0f;
+       static double prevTime = getCurrentTime();
+       double time = getCurrentTime();
+       float dt = ((float)(time-prevTime))/10.0f;
+       rotateBowlAngle += dt * 18000.0f/3.1415f;
+       moveXY += dt;
+       SampleUtils::translatePoseMatrix(50.0f*cos(2.0f*3.1415f*moveXY),
+       50.0f*sin(2.0f*3.1415f*moveXY), 0.0f, &modelViewMatrix.data[0]);
+       SampleUtils::rotatePoseMatrix(rotateBowlAngle, 0.0f, 0.0f, 1.0f,
+       &modelViewMatrix.data[0]);
+       prevTime = time;
+}
+
+
+/*
+Sample XML:
+
+<?xml version="1.0" encoding="UTF-8"?>
+<QCARConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:noNamespaceSchemaLocation="qcar_config.xsd">
+<Tracking>
+<ImageTarget size="247 173" name="stones" />
+<ImageTarget size="247 173" name="chips" />
+</Tracking>
+</QCARConfig>
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<QCARConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:noNamespaceSchemaLocation="qcar_config.xsd">
+<Tracking>
+<ImageTarget name="stones" size="247 173">
+<VirtualButton name="muovi" rectangle="-108.68 -53.52 -75.75
+-65.87" enabled="true"></VirtualButton></ImageTarget>
+</Tracking>
+</QCARConfig>
+
+*/
+
+//valuta se ci sono trackable attivi
+if (state.getNumActiveTrackables()>0)
+{
+       //crea l'oggetto trackable e restituiscine la posizione
+       const QCAR::Trackable* trackable = state.getActiveTrackable(0);
+       QCAR::Matrix44F modelViewMatrix =
+       QCAR::Tool::convertPose2GLMatrix(trackable->getPose());
+       //verifica che il trackable sia di tipo image target in caso
+       // affermativo fai il cast dell'oggetto Trackable a ImageTarget
+       assert(trackable->getType() == QCAR::Trackable::IMAGE_TARGET);
+       const QCAR::ImageTarget* target = static_cast<const
+       QCAR::ImageTarget*> (trackable);
+       // crea l'oggetto Virtual Button se esiste altrimenti
+       //inizializzalo a null
+       const QCAR::VirtualButton* button = target->getVirtualButton(0);
+       //se il bottone non è null vedi se è premuto
+       if (button != NULL)
+       {
+              // se è premuto anima la teiera
+              if (button->isPressed())
+              {
+              animateTeapot(modelViewMatrix);
+              }
+       }
+       //esegui impostazione e disegna l'oggetto
+
+}
+
 @end
